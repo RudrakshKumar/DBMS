@@ -1,0 +1,86 @@
+CREATE TABLE Customer (
+    custid INT PRIMARY KEY,
+    cname VARCHAR(25),
+    city VARCHAR(25)
+);
+
+CREATE TABLE Orders (
+    orderid INT PRIMARY KEY,
+    odate DATE,
+    custid INT,
+    order_amt INT,
+    FOREIGN KEY (custid) REFERENCES Customer(custid)
+);
+
+CREATE TABLE Item (
+    Itemid INT PRIMARY KEY,
+    unitprice INT
+);
+
+CREATE TABLE Order_Item (
+    orderid INT,
+    Itemid INT,
+    qty INT,
+    order_amt INT,
+    PRIMARY KEY (orderid, Itemid),
+    FOREIGN KEY (orderid) REFERENCES Orders(orderid),
+    FOREIGN KEY (Itemid) REFERENCES Item(Itemid)
+);
+
+CREATE TABLE Warehouse (
+    warehouseid INT PRIMARY KEY,
+    city VARCHAR(25)
+);
+
+CREATE TABLE Shipment (
+    orderid INT,
+    warehouseid INT,
+    ship_date DATE,
+    PRIMARY KEY (orderid),
+    FOREIGN KEY (orderid) REFERENCES Orders(orderid),
+    FOREIGN KEY (warehouseid) REFERENCES Warehouse(warehouseid)
+);
+
+--1. List the Order# and Ship_date for all orders shipped from Warehouse# "W2".
+SELECT S.orderid, S.ship_date
+FROM Shipment S
+WHERE S.warehouseid = 1;
+
+-- List the Warehouse information from which the Customer named "Kumar" was supplied his orders. Produce a listing of Order#, Warehouse#.
+SELECT O.orderid, S.warehouseid
+FROM Customer C
+JOIN Orders O ON C.custid = O.custid
+JOIN Shipment S ON O.orderid = S.orderid
+WHERE C.cname = 'Kumar';
+
+-- Produce a listing: Cname, #ofOrders, Avg_Order_Amt, where the middle column is the total number of orders by the customer, and the last column is the average order amount for that customer. (Use aggregate functions)
+SELECT C.cname, COUNT(O.orderid) AS noofOrders, AVG(O.order_amt) AS Avg_Order_Amt
+FROM Customer C
+JOIN Orders O ON C.custid = O.custid
+GROUP BY C.cname;
+
+--Delete all orders for the customer named "Kumar"
+DELETE FROM Orders
+WHERE custid = (SELECT custid FROM Customer WHERE cname = 'Kumar');
+
+--Find the item with the maximum unit price.
+SELECT * 
+FROM Item 
+WHERE unitprice = (SELECT MAX(unitprice) FROM Item);
+
+--Create a view to display orderID and shipment date of all orders shipped from warehouse 5.
+CREATE VIEW OrdersFromWarehouse5 AS
+SELECT S.orderid, S.ship_date
+FROM Shipment S
+WHERE S.warehouseid = 5;
+
+--A trigger that updates order_amout based on quantity and unitprice of order_item.
+delimiter //
+CREATE TRIGGER update_order_amount
+BEFORE INSERT ON Order_Item
+FOR EACH ROW
+BEGIN
+    SET NEW.order_amt = NEW.qty * (SELECT unitprice FROM Item WHERE itemid = NEW.itemid);
+END;
+//
+delimiter ;

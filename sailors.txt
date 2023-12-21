@@ -1,0 +1,119 @@
+CREATE TABLE SAILORS (
+    sid INT PRIMARY KEY,
+    sname VARCHAR(20),
+    rating INT,
+    age INT
+);
+
+CREATE TABLE BOAT (
+    bid INT PRIMARY KEY,
+    bname VARCHAR(20),
+    color VARCHAR(20)
+);
+
+CREATE TABLE RESERVES (
+    sid INT,
+    bid INT,
+    date DATE,
+    PRIMARY KEY (sid, bid, date),
+    FOREIGN KEY (sid) REFERENCES SAILORS(sid),
+    FOREIGN KEY (bid) REFERENCES BOAT(bid)
+);
+
+INSERT INTO SAILORS VALUES
+(1,'John',8,25),
+(2,'Alice',7,22),
+(3,'Bob',9,28),
+(4,'Cindy',6,24),
+(5,'David',8,27);
+
+INSERT INTO BOAT VALUES
+(101,'Speedy','Blue'),
+(102,'Voyager','Red'),
+(103,'Aquatic','Green'),
+(104,'Mariner','Yellow'),
+(105,'Seafarer','White');
+
+INSERT INTO RESERVES VALUES
+(1,101,'2023-01-15'),
+(2,102,'2023-02-10'),
+(3,103,'2023-03-05'),
+(4,104,'2023-04-20'),
+(5,105,'2023-05-15'),
+(2,101,'2023-01-15'),
+(2,103,'2023-01-15'),
+(2,104,'2023-01-15'),
+(2,105,'2023-01-15');
+
+
+
+--Find the colours of boats reserved by Albert
+SELECT DISTINCT B.color
+FROM SAILORS S
+JOIN RESERVES R ON S.sid = R.sid
+JOIN BOAT B ON R.bid = B.bid
+WHERE S.sname = 'John';
+
+-- Find all sailor id’s of sailors who have a rating of at least 8 or reserved boat 103
+SELECT DISTINCT S.sid
+FROM SAILORS S
+LEFT JOIN RESERVES R ON S.sid = R.sid
+WHERE S.rating >= 8 OR R.bid = 103;
+
+--Find the names of sailors who have not reserved a boat whose name contains the string “storm”. Order the names in ascending order.
+SELECT DISTINCT S.sname
+FROM SAILORS S
+LEFT JOIN RESERVES R ON S.sid = R.sid
+LEFT JOIN BOAT B ON R.bid = B.bid
+WHERE B.bname NOT LIKE '%storm%' OR R.bid IS NULL
+ORDER BY S.sname ASC;
+
+--Find the names of sailors who have reserved all boats.
+SELECT S.sname
+FROM SAILORS S
+WHERE NOT EXISTS (
+    SELECT B.bid
+    FROM BOAT B
+    WHERE NOT EXISTS (
+        SELECT R.bid
+        FROM RESERVES R
+        WHERE R.sid = S.sid AND R.bid = B.bid
+    )
+);
+
+--Find the name and age of the oldest sailor.
+SELECT sname, age
+FROM SAILORS
+where age = (SELECT MAX(age) from SAILORS);
+
+-- For each boat which was reserved by at least 5 sailors with age >= 40, find the boat id and the average age of such sailors.
+SELECT R.bid, AVG(S.age) AS avg_age
+FROM RESERVES R
+JOIN SAILORS S ON R.sid = S.sid
+WHERE S.age >= 40
+GROUP BY R.bid
+HAVING COUNT(DISTINCT R.sid) >= 5;
+
+--Create a view that shows the names and colours of all the boats that have been reserved by a sailor with a specific rating.
+CREATE VIEW ReservedBoatsByRating AS
+SELECT S.sname, B.bname, B.color
+FROM SAILORS S
+JOIN RESERVES R ON S.sid = R.sid
+JOIN BOAT B ON R.bid = B.bid;
+
+-- A trigger that prevents boats from being deleted if they have active reservations.
+delimiter //
+create trigger prevent_delete
+before delete on BOAT
+for each row 
+begin 
+  if (select count(*) from RESERVES where bid = OLD.bid) > 0 then
+  signal sqlstate '45000'
+  set message_text = 'Cannot delete boat with active resservations';
+  end if;
+  end;
+  //
+  delimiter ;
+
+
+

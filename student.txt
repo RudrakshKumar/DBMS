@@ -1,0 +1,125 @@
+CREATE TABLE STUDENT (
+    regno VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(25),
+    major VARCHAR(25),
+    bdate DATE
+);
+
+CREATE TABLE COURSE (
+    courseid INT PRIMARY KEY,
+    cname VARCHAR(255),
+    dept VARCHAR(255)
+);
+
+CREATE TABLE ENROLL (
+    regno VARCHAR(255),
+    courseid INT,
+    sem INT,
+    marks INT,
+    PRIMARY KEY (regno, courseid, sem),
+    FOREIGN KEY (regno) REFERENCES STUDENT(regno),
+    FOREIGN KEY (courseid) REFERENCES COURSE(courseid)
+);
+
+CREATE TABLE TEXT (
+    book_ISBN INT PRIMARY KEY,
+    book_title VARCHAR(255),
+    publisher VARCHAR(255),
+    author VARCHAR(255)
+);
+
+CREATE TABLE BOOK_ADOPTION (
+    courseid INT,
+    sem INT,
+    book_ISBN INT,
+    PRIMARY KEY (courseid, sem, book_ISBN),
+    FOREIGN KEY (courseid) REFERENCES COURSE(courseid),
+    FOREIGN KEY (book_ISBN) REFERENCES TEXT(book_ISBN)
+);
+
+INSERT INTO STUDENT VALUES
+('S1', 'Alice', 'Computer Science', '2000-01-01'),
+('S2', 'Bob', 'Electrical Engineering', '2001-02-02'),
+('S3', 'Charlie', 'Mechanical Engineering', '2002-03-03');
+
+INSERT INTO COURSE VALUES
+(1, 'Introduction to Computer Science', 'CS'),
+(2, 'Database Management Systems', 'CS'),
+(3, 'Digital Electronics', 'EE'),
+(4, 'Thermodynamics', 'ME');
+
+INSERT INTO ENROLL VALUES
+('S1', 1, 1, 90),
+('S1', 2, 1, 85),
+('S2', 1, 1, 88),
+('S2', 3, 1, 92),
+('S3', 2, 1, 78),
+('S3', 4, 1, 85);
+
+INSERT INTO TEXT VALUES
+(101, 'Introduction to Algorithms', 'MIT Press', 'Thomas H. Cormen'),
+(102, 'Database Systems: The Complete Book', 'Pearson', 'Hector Garcia-Molina'),
+(103, 'Digital Design', 'Pearson', 'M. Morris Mano'),
+(104, 'Thermodynamics: An Engineering Approach', 'Wiley', 'Yunus A. Cengel');
+
+INSERT INTO BOOK_ADOPTION VALUES
+(1, 1, 101),
+(2, 1, 102),
+(3, 1, 103),
+(4, 1, 104);
+
+-- Demonstrate how you add a new textbook to the database and make this book be adopted by some department.
+-- Adding a new textbook
+INSERT INTO TEXT VALUES (105, 'New Textbook', 'New Publisher', 'New Author');
+
+-- Adopting the new textbook for a course in a specific semester
+INSERT INTO BOOK_ADOPTION VALUES (1, 2, 105);
+
+--Produce a list of textbooks (include Course #, Book-ISBN, Book-title) in alphabetical order for courses offered by the ‘CS’ department that use more than two books.
+SELECT BA.courseid, BA.book_ISBN, T.book_title
+FROM BOOK_ADOPTION BA
+JOIN TEXT T ON BA.book_ISBN = T.book_ISBN
+JOIN COURSE C ON BA.courseid = C.courseid
+WHERE C.dept = 'CS'
+GROUP BY BA.courseid, BA.book_ISBN, T.book_title
+HAVING COUNT(*) > 2
+ORDER BY T.book_title;
+
+--List any department that has all its adopted books published by a specific publisher.
+SELECT DISTINCT C.dept
+FROM COURSE C
+WHERE NOT EXISTS (
+    SELECT *
+    FROM BOOK_ADOPTION BA
+    JOIN TEXT T ON BA.book_ISBN = T.book_ISBN
+    WHERE C.courseid = BA.courseid AND T.publisher <> 'Pearson'
+);
+
+-- List the students who have scored the maximum marks in the ‘DBMS’ course.
+SELECT E.regno, S.name, E.marks
+FROM ENROLL E
+JOIN STUDENT S ON E.regno = S.regno
+WHERE E.courseid = (SELECT courseid FROM COURSE WHERE cname = 'Database Management Systems')
+ORDER BY E.marks DESC
+LIMIT 1;
+
+--Create a view to display all the courses opted by a student along with marks obtained.
+CREATE VIEW StudentCourses AS
+SELECT S.regno, S.name, C.cname, E.marks
+FROM STUDENT S
+JOIN ENROLL E ON S.regno = E.regno
+JOIN COURSE C ON E.courseid = C.courseid;
+
+--Create a trigger that prevents a student from enrolling in a course if the marks prerequisite is less than 40.
+delimiter //
+CREATE TRIGGER prevent_low_marks
+BEFORE INSERT ON ENROLL
+FOR EACH ROW
+BEGIN
+    IF NEW.marks < 40 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Marks prerequisite not met. Cannot enroll in the course.';
+    END IF;
+END;
+//
+delimiter ;

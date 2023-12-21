@@ -1,0 +1,94 @@
+CREATE TABLE PERSON (
+    driver_id VARCHAR(25) PRIMARY KEY,
+    name VARCHAR(25),
+    address VARCHAR(25)
+);
+
+CREATE TABLE CAR (
+    regno VARCHAR(25) PRIMARY KEY,
+    model VARCHAR(25),
+    year INT
+);
+
+CREATE TABLE ACCIDENT (
+    report_number INT PRIMARY KEY,
+    acc_date DATE,
+    location VARCHAR(25)
+);
+
+CREATE TABLE OWNS (
+    driver_id VARCHAR(25),
+    regno VARCHAR(25),
+    PRIMARY KEY (driver_id, regno),
+    FOREIGN KEY (driver_id) REFERENCES PERSON(driver_id),
+    FOREIGN KEY (regno) REFERENCES CAR(regno)
+);
+
+CREATE TABLE PARTICIPATED (
+    driver_id VARCHAR(25),
+    regno VARCHAR(25),
+    report_number INT,
+    damage_amount INT,
+    PRIMARY KEY (driver_id, regno, report_number),
+    FOREIGN KEY (driver_id) REFERENCES PERSON(driver_id),
+    FOREIGN KEY (regno) REFERENCES CAR(regno),
+    FOREIGN KEY (report_number) REFERENCES ACCIDENT(report_number)
+);
+
+
+--Find the total number of people who owned cars that were involved in accidents in 2021.
+SELECT COUNT(DISTINCT P.driver_id) AS total_people
+FROM PERSON P
+JOIN OWNS O ON P.driver_id = O.driver_id
+JOIN PARTICIPATED PA ON O.driver_id = PA.driver_id
+JOIN ACCIDENT A ON PA.report_number = A.report_number
+WHERE YEAR(A.acc_date) = 2021;
+
+-- Find the number of accidents in which the cars belonging to “Smith” were involved.
+SELECT COUNT(*) AS accidents_involving_smith
+FROM ACCIDENT A
+JOIN PARTICIPATED PA ON A.report_number = PA.report_number
+JOIN OWNS O ON PA.driver_id = O.driver_id
+JOIN PERSON P ON O.driver_id = P.driver_id
+WHERE P.name = 'Smith';
+
+--Add a new accident to the database; assume any values for required attributes.
+INSERT INTO ACCIDENT (report_number, acc_date, location)
+VALUES (12345, '2023-01-01', 'Intersection of Main St and Elm St');
+
+--Delete the Mazda belonging to “Smith”.
+DELETE FROM CAR
+WHERE regno IN (SELECT regno FROM OWNS WHERE driver_id# IN (SELECT driver_id# FROM PERSON WHERE name = 'Smith') AND model = 'Mazda');
+
+--Update the damage amount for the car with license number “KA09MA1234” in the accident with report.
+UPDATE PARTICIPATED
+SET damage_amount = new_damage_amount
+WHERE regno = 'KA09MA1234' AND report_number = your_report_number;
+
+--A view that shows models and year of cars that are involved in accidents.
+CREATE VIEW AccidentCarsView AS
+SELECT DISTINCT C.model, C.year
+FROM CAR C
+JOIN PARTICIPATED PA ON C.regno = PA.regno;
+
+--CREATE VIEW AccidentCarsView AS
+SELECT DISTINCT C.model, C.year
+FROM CAR C
+JOIN PARTICIPATED PA ON C.regno = PA.regno;
+
+
+--A trigger that prevents a driver from participating in more than 3 accidents in a given year.
+delimiter //
+CREATE TRIGGER prevent_excessive_accidents
+BEFORE INSERT ON PARTICIPATED
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM PARTICIPATED
+        WHERE driver_id = NEW.driver_id
+        AND YEAR(acc_date) = YEAR(NEW.acc_date)) >= 3 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A driver cannot participate in more than 3 accidents in a year';
+    END IF;
+END;
+//
+delimiter ;
